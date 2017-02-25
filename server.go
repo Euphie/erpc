@@ -1,28 +1,11 @@
-package rpc
+package erpc
 
 import (
-	"io"
 	"net"
 	"reflect"
 	"strconv"
 	"sync"
 )
-
-// Request 请求
-type Request struct {
-	ServiceName string `json:"ServiceName"`
-	MethodName  string `json:"MethodName"`
-}
-
-// Codec 解码器
-type Codec interface {
-	getRequest(r io.Reader) (req Request)
-}
-
-// Protocol 协议
-type Protocol struct {
-	codec Codec
-}
 
 // Options PRC服务器选项
 type Options struct {
@@ -111,7 +94,7 @@ func (server *Server) Register(service interface{}, alias string) {
 		Log("发现方法: %s", methodName)
 		methodType := method.Type
 		Log("方法类型: %v", methodType)
-		Log("%v", methodType.In(2))
+		//Log("%v", methodType.In(0))
 	}
 }
 
@@ -135,7 +118,10 @@ func (server *Server) Start() {
 	}
 }
 
-// Start 启动RPC Server
 func (server *Server) handleConn(conn net.Conn) {
+
+}
+
+func (server *Server) exec() {
 
 }
