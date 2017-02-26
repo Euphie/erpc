@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"strconv"
 	"sync"
+	"time"
 )
 
 // Options PRC服务器选项
@@ -16,8 +17,15 @@ type Options struct {
 
 // Service 服务
 type Service struct {
-	name   string
-	rtype  reflect.Type
+	name      string
+	rtype     reflect.Type
+	rvalue    reflect.Value
+	methodMap map[string]*SerivceMethod
+}
+
+// SerivceMethod 服务方法
+type SerivceMethod struct {
+	method reflect.Method
 	rvalue reflect.Value
 }
 
@@ -40,15 +48,14 @@ func NewServer(options Options) (server *Server) {
 	if options.address == "" {
 		options.address = "0.0.0.0"
 	}
-
 	if options.port == 0 {
 		options.port = 9999
 	}
-
 	if options.protocol == nil {
-		options.protocol = &Protocol{}
+		options.protocol = &Protocol{
+			codec: &TestJSONCodec{},
+		}
 	}
-
 	server = &Server{
 		options:    &options,
 		serviceMap: make(map[string]*Service),
@@ -69,33 +76,51 @@ func (server *Server) Register(service interface{}, alias string) {
 		Log("服务注册失败")
 		return
 	}
-
 	Log("注册的服务类型: %s", name)
 	if alias != "" {
 		Log("设置服务别名: %s", alias)
 		name = alias
 	}
-
 	if _, ok := server.serviceMap[name]; ok {
 		Log("服务已经注册过了: %s", name)
 		return
 	}
-
 	_service.name = name
-
 	methodNum := _service.rtype.NumMethod()
 	if methodNum == 0 {
 		Log("没有找到方法, 服务: %s 注册失败", name)
 		return
 	}
-	for i := 0; i < methodNum; i++ {
-		method := _service.rtype.Method(i)
-		methodName := method.Name
-		Log("发现方法: %s", methodName)
-		methodType := method.Type
-		Log("方法类型: %v", methodType)
-		//Log("%v", methodType.In(0))
+	if _service.methodMap == nil {
+		_service.methodMap = make(map[string]*SerivceMethod)
 	}
+	for i := 0; i < methodNum; i++ {
+		value := _service.rvalue.Method(i)
+		method := _service.rtype.Method(i)
+		incheck := true
+		for j := 1; j <= method.Type.NumIn(); j++ {
+			intype := method.Type.In(j)
+			if !checkIn(intype) {
+				incheck = false
+				break
+			}
+		}
+		if !incheck {
+			continue
+		}
+		if method.Type.NumOut() != 1 {
+			continue
+		}
+		if method.Type.Out(0) != reflect.TypeOf(Response{}) {
+			continue
+		}
+		Log("发现方法: %s", method.Name)
+		_service.methodMap[method.Name] = &SerivceMethod{
+			rvalue: value,
+			method: method,
+		}
+	}
+	server.serviceMap[name] = _service
 }
 
 // Start 启动RPC服务器
@@ -111,6 +136,7 @@ func (server *Server) Start() {
 	server.listener = &listener
 	for {
 		conn, err := listener.Accept()
+		conn.SetReadDeadline(time.Now().Add(time.Duration(60 * time.Second)))
 		if err != nil {
 			Log("连接失败: %s", err.Error())
 		}
@@ -119,9 +145,35 @@ func (server *Server) Start() {
 }
 
 func (server *Server) handleConn(conn net.Conn) {
+	req, err := server.options.protocol.codec.getRequest(conn)
+	if err != nil {
+		Log("获取请求失败: %s", err.Error())
+		return
+	}
+	service, ok := server.serviceMap[req.ServiceName]
+	if !ok {
+		Log("服务不存在: %s", req.ServiceName)
+		return
+	}
+	method, ok := service.methodMap[req.MethodName]
+	if !ok {
+		Log("方法不存在: %s", req.MethodName)
+		return
+	}
 
+	params := make([]reflect.Value, len(req.Params))
+	for i, p := range req.Params {
+		if !ok {
+			Log("参数类型不存在: %s", p.Type)
+			return
+		}
+		params[i] = reflect.ValueOf(convert(p))
+	}
+	resps := method.rvalue.Call(params)
+	resp := resps[0].Interface().(Response)
+	Log("%v", resp)
 }
 
-func (server *Server) exec() {
+func (server *Server) execute(req Request) {
 
 }
