@@ -55,7 +55,7 @@ func convert(param RequestParam) (value interface{}) {
 
 // Protocol 协议
 type Protocol struct {
-	codec Codec
+	Codec Codec
 }
 
 // Codec 编码器
@@ -80,7 +80,7 @@ type Response struct {
 	Data    interface{}
 }
 
-// RequestParams 方法参数
+// RequestParam 方法参数
 type RequestParam struct {
 	Type  string
 	Value string

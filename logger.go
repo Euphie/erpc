@@ -1,8 +1,9 @@
 package erpc
 
-import "fmt"
-
-// Log 记录日志
-func Log(format string, a ...interface{}) {
-	fmt.Printf(format+"\n", a...)
+// Logger 日志
+type Logger interface {
+	Info(format string, a ...interface{})
+	Error(format string, a ...interface{})
+	Debug(format string, a ...interface{})
+	Warn(format string, a ...interface{})
 }

@@ -1,6 +1,7 @@
 package erpc
 
 import (
+	"fmt"
 	"net"
 	"reflect"
 	"strconv"
@@ -10,9 +11,10 @@ import (
 
 // Options PRC服务器选项
 type Options struct {
-	address  string
-	port     int
-	protocol *Protocol
+	Address  string
+	Port     int
+	Logger   Logger
+	Protocol *Protocol
 }
 
 // Service 服务
@@ -45,16 +47,14 @@ func GetDefaultServer() (server *Server) {
 // NewServer 新建一个RPC服务器
 func NewServer(options Options) (server *Server) {
 	// 默认选项
-	if options.address == "" {
-		options.address = "0.0.0.0"
+	if options.Address == "" {
+		options.Address = "0.0.0.0"
 	}
-	if options.port == 0 {
-		options.port = 9999
+	if options.Port == 0 {
+		options.Port = 9999
 	}
-	if options.protocol == nil {
-		options.protocol = &Protocol{
-			codec: &TestJSONCodec{},
-		}
+	if options.Protocol == nil {
+		options.Protocol = &Protocol{Codec: &TestJSONCodec{}}
 	}
 	server = &Server{
 		options:    &options,
@@ -98,7 +98,7 @@ func (server *Server) Register(service interface{}, alias string) {
 		value := _service.rvalue.Method(i)
 		method := _service.rtype.Method(i)
 		incheck := true
-		for j := 1; j <= method.Type.NumIn(); j++ {
+		for j := 0; j < method.Type.NumIn(); j++ {
 			intype := method.Type.In(j)
 			if !checkIn(intype) {
 				incheck = false
@@ -125,7 +125,7 @@ func (server *Server) Register(service interface{}, alias string) {
 
 // Start 启动RPC服务器
 func (server *Server) Start() {
-	address := server.options.address + ":" + strconv.Itoa(server.options.port)
+	address := server.options.Address + ":" + strconv.Itoa(server.options.Port)
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		Log("监听失败: %s", err.Error())
@@ -145,7 +145,7 @@ func (server *Server) Start() {
 }
 
 func (server *Server) handleConn(conn net.Conn) {
-	req, err := server.options.protocol.codec.getRequest(conn)
+	req, err := server.options.Protocol.Codec.getRequest(conn)
 	if err != nil {
 		Log("获取请求失败: %s", err.Error())
 		return
@@ -176,4 +176,9 @@ func (server *Server) handleConn(conn net.Conn) {
 
 func (server *Server) execute(req Request) {
 
+}
+
+// Log 记录日志
+func Log(format string, a ...interface{}) {
+	fmt.Printf(format+"\n", a...)
 }
