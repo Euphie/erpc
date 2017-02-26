@@ -1,7 +1,6 @@
 package erpc
 
 import (
-	"fmt"
 	"net"
 	"reflect"
 	"strconv"
@@ -73,22 +72,22 @@ func (server *Server) Register(service interface{}, alias string) {
 	_service.rvalue = reflect.ValueOf(service)
 	name := reflect.Indirect(_service.rvalue).Type().Name()
 	if name == "" {
-		Log("服务注册失败")
+		Error("服务注册失败")
 		return
 	}
-	Log("注册的服务类型: %s", name)
+	Debug("注册的服务类型: %s", name)
 	if alias != "" {
-		Log("设置服务别名: %s", alias)
+		Info("设置服务别名: %s", alias)
 		name = alias
 	}
 	if _, ok := server.serviceMap[name]; ok {
-		Log("服务已经注册过了: %s", name)
+		Warn("服务已经注册过了: %s", name)
 		return
 	}
 	_service.name = name
 	methodNum := _service.rtype.NumMethod()
 	if methodNum == 0 {
-		Log("没有找到方法, 服务: %s 注册失败", name)
+		Error("没有找到方法, 服务: %s 注册失败", name)
 		return
 	}
 	if _service.methodMap == nil {
@@ -114,7 +113,7 @@ func (server *Server) Register(service interface{}, alias string) {
 		if method.Type.Out(0) != reflect.TypeOf(Response{}) {
 			continue
 		}
-		Log("发现方法: %s", method.Name)
+		Info("发现方法: %s", method.Name)
 		_service.methodMap[method.Name] = &SerivceMethod{
 			rvalue: value,
 			method: method,
@@ -128,9 +127,9 @@ func (server *Server) Start() {
 	address := server.options.Address + ":" + strconv.Itoa(server.options.Port)
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
-		Log("监听失败: %s", err.Error())
+		Error("监听失败: %s", err.Error())
 	} else {
-		Log("监听地址: %s", address)
+		Info("监听地址: %s", address)
 	}
 
 	server.listener = &listener
@@ -138,7 +137,7 @@ func (server *Server) Start() {
 		conn, err := listener.Accept()
 		conn.SetReadDeadline(time.Now().Add(time.Duration(60 * time.Second)))
 		if err != nil {
-			Log("连接失败: %s", err.Error())
+			Error("连接失败: %s", err.Error())
 		}
 		go server.handleConn(conn)
 	}
@@ -147,38 +146,33 @@ func (server *Server) Start() {
 func (server *Server) handleConn(conn net.Conn) {
 	req, err := server.options.Protocol.Codec.getRequest(conn)
 	if err != nil {
-		Log("获取请求失败: %s", err.Error())
+		Error("获取请求失败: %s", err.Error())
 		return
 	}
 	service, ok := server.serviceMap[req.ServiceName]
 	if !ok {
-		Log("服务不存在: %s", req.ServiceName)
+		Error("服务不存在: %s", req.ServiceName)
 		return
 	}
 	method, ok := service.methodMap[req.MethodName]
 	if !ok {
-		Log("方法不存在: %s", req.MethodName)
+		Error("方法不存在: %s", req.MethodName)
 		return
 	}
 
 	params := make([]reflect.Value, len(req.Params))
 	for i, p := range req.Params {
 		if !ok {
-			Log("参数类型不存在: %s", p.Type)
+			Error("参数类型不存在: %s", p.Type)
 			return
 		}
 		params[i] = reflect.ValueOf(convert(p))
 	}
 	resps := method.rvalue.Call(params)
 	resp := resps[0].Interface().(Response)
-	Log("%v", resp)
+	Info("%v", resp)
 }
 
 func (server *Server) execute(req Request) {
 
-}
-
-// Log 记录日志
-func Log(format string, a ...interface{}) {
-	fmt.Printf(format+"\n", a...)
 }
