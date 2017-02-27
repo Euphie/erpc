@@ -63,7 +63,7 @@ type Codec interface {
 	getRequest(r net.Conn) (req Request, err error)
 	getResponse(r net.Conn) (resp Response, err error)
 	sendRequest(r net.Conn) bool
-	sendResponse(r net.Conn) bool
+	sendResponse(r net.Conn, resp Response) (err error)
 }
 
 // Request 请求
@@ -93,8 +93,8 @@ type JSONCodec struct {
 }
 
 func (jc *JSONCodec) getRequest(r net.Conn) (req Request, err error) {
-	// 方便telnet测试，取前4个字节的字符，转成int
-	buf := make([]byte, 4)
+	// 方便telnet测试，取前8个字节的字符，转成int
+	buf := make([]byte, 8)
 	n, _ := io.ReadFull(r, buf)
 	req = Request{}
 	if n < 4 {
@@ -122,8 +122,31 @@ func (jc *JSONCodec) getResponse(r net.Conn) (resp Response, err error) {
 func (jc *JSONCodec) sendRequest(r net.Conn) bool {
 	return false
 }
-func (jc *JSONCodec) sendResponse(r net.Conn) bool {
-	return false
+func (jc *JSONCodec) sendResponse(r net.Conn, resp Response) (err error) {
+	bytes, err := json.Marshal(resp)
+	if err != nil {
+		return err
+	}
+	ilen := len(bytes)
+	slen := strconv.Itoa(ilen)
+	bit := len(slen)
+	if bit > 8 {
+		return errors.New("写入报文太大")
+	}
+	if bit < 8 {
+		for i := 0; i < 8-bit; i++ {
+			slen = "0" + slen
+		}
+	}
+	buf := []byte(slen)
+	for _, v := range bytes {
+		buf = append(buf, v)
+	}
+	n, err := r.Write(buf)
+	if n == 0 || n != ilen {
+		return errors.New("数据报文失败")
+	}
+	return err
 }
 
 //=============实现一个测试的JSON的编码器=================
@@ -145,6 +168,29 @@ func (jc *TestJSONCodec) getResponse(r net.Conn) (resp Response, err error) {
 func (jc *TestJSONCodec) sendRequest(r net.Conn) bool {
 	return false
 }
-func (jc *TestJSONCodec) sendResponse(r net.Conn) bool {
-	return false
+func (jc *TestJSONCodec) sendResponse(r net.Conn, resp Response) (err error) {
+	bytes, err := json.Marshal(resp)
+	if err != nil {
+		return err
+	}
+	ilen := len(bytes)
+	slen := strconv.Itoa(ilen)
+	bit := len(slen)
+	if bit > 8 {
+		return errors.New("写入报文太大")
+	}
+	if bit < 8 {
+		for i := 0; i < 8-bit; i++ {
+			slen = "0" + slen
+		}
+	}
+	buf := []byte(slen)
+	for _, v := range bytes {
+		buf = append(buf, v)
+	}
+	n, err := r.Write(buf)
+	if n == 0 || n != ilen {
+		return errors.New("数据报文失败")
+	}
+	return err
 }

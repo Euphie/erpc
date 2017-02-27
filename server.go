@@ -53,7 +53,7 @@ func NewServer(options Options) (server *Server) {
 		options.Port = 9999
 	}
 	if options.Protocol == nil {
-		options.Protocol = &Protocol{Codec: &TestJSONCodec{}}
+		options.Protocol = &Protocol{Codec: &JSONCodec{}}
 	}
 	server = &Server{
 		options:    &options,
@@ -170,6 +170,7 @@ func (server *Server) handleConn(conn net.Conn) {
 	}
 	resps := method.rvalue.Call(params)
 	resp := resps[0].Interface().(Response)
+	server.options.Protocol.Codec.sendResponse(conn, resp)
 	Info("%v", resp)
 }
 
