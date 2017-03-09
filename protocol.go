@@ -62,12 +62,13 @@ type Protocol struct {
 type Codec interface {
 	getRequest(r net.Conn) (req Request, err error)
 	getResponse(r net.Conn) (resp Response, err error)
-	sendRequest(r net.Conn) bool
+	sendRequest(r net.Conn, req Request) (err error)
 	sendResponse(r net.Conn, resp Response) (err error)
 }
 
 // Request 请求
 type Request struct {
+	Seq         uint64
 	ServiceName string         `json:"ServiceName"`
 	MethodName  string         `json:"MethodName"`
 	Params      []RequestParam `json:"Params"`
@@ -78,6 +79,7 @@ type Response struct {
 	Code    int
 	Message string
 	Data    interface{}
+	Seq     uint64
 }
 
 // RequestParam 方法参数
@@ -97,7 +99,11 @@ func (jc *JSONCodec) getRequest(r net.Conn) (req Request, err error) {
 	buf := make([]byte, 8)
 	n, _ := io.ReadFull(r, buf)
 	req = Request{}
-	if n < 4 {
+	if err == io.EOF || n == 0 {
+		err = io.EOF
+		return
+	}
+	if n < 8 {
 		err = errors.New("读取报文长度错误")
 		return
 	}
@@ -117,10 +123,52 @@ func (jc *JSONCodec) getRequest(r net.Conn) (req Request, err error) {
 }
 
 func (jc *JSONCodec) getResponse(r net.Conn) (resp Response, err error) {
-	return Response{}, nil
+	// 方便telnet测试，取前8个字节的字符，转成int
+	buf := make([]byte, 8)
+	n, err := io.ReadFull(r, buf)
+	if err == io.EOF || n == 0 {
+		err = errors.New("请求结束")
+		return
+	}
+	resp = Response{}
+	if n < 8 {
+		err = errors.New("读取报文长度错误")
+		return
+	}
+	len, _ := strconv.Atoi(string(buf))
+	buf = make([]byte, len)
+	n, _ = io.ReadFull(r, buf)
+	if n < len || n == 0 {
+		err = errors.New("报文读取错误")
+		return
+	}
+	err = json.Unmarshal(buf, &resp)
+	if err != nil {
+		err = errors.New("报文解析错误")
+		return
+	}
+	return
 }
-func (jc *JSONCodec) sendRequest(r net.Conn) bool {
-	return false
+func (jc *JSONCodec) sendRequest(r net.Conn, req Request) (err error) {
+	buff, err := json.Marshal(req)
+	if err != nil {
+		err = errors.New("报文生成错误")
+		return
+	}
+
+	pedding := ""
+	slen := strconv.Itoa(len(buff))
+	for len := len(slen); len < 8; len++ {
+		pedding += "0"
+	}
+	body := pedding + slen + string(buff)
+	n, err := r.Write([]byte(body))
+	if err != nil || n != len(buff)+8 {
+		err = errors.New("报文写入错误")
+		return
+	}
+
+	return nil
 }
 func (jc *JSONCodec) sendResponse(r net.Conn, resp Response) (err error) {
 	bytes, err := json.Marshal(resp)
@@ -165,8 +213,8 @@ func (jc *TestJSONCodec) getRequest(r net.Conn) (req Request, err error) {
 func (jc *TestJSONCodec) getResponse(r net.Conn) (resp Response, err error) {
 	return Response{}, nil
 }
-func (jc *TestJSONCodec) sendRequest(r net.Conn) bool {
-	return false
+func (jc *TestJSONCodec) sendRequest(r net.Conn, req Request) (err error) {
+	return nil
 }
 func (jc *TestJSONCodec) sendResponse(r net.Conn, resp Response) (err error) {
 	bytes, err := json.Marshal(resp)

@@ -1,18 +1,17 @@
 package erpc
 
 import (
+	"io"
 	"net"
 	"reflect"
 	"strconv"
 	"sync"
-	"time"
 )
 
 // Options PRC服务器选项
 type Options struct {
 	Address  string
 	Port     int
-	Logger   Logger
 	Protocol *Protocol
 }
 
@@ -135,7 +134,7 @@ func (server *Server) Start() {
 	server.listener = &listener
 	for {
 		conn, err := listener.Accept()
-		conn.SetReadDeadline(time.Now().Add(time.Duration(60 * time.Second)))
+		// conn.SetReadDeadline(time.Now().Add(time.Duration(60 * time.Second)))
 		if err != nil {
 			Error("连接失败: %s", err.Error())
 		}
@@ -144,36 +143,45 @@ func (server *Server) Start() {
 }
 
 func (server *Server) handleConn(conn net.Conn) {
+	for {
+		err := server.execute(conn)
+		if err != nil {
+			break
+		}
+	}
+}
+
+func (server *Server) execute(conn net.Conn) error {
 	req, err := server.options.Protocol.Codec.getRequest(conn)
 	if err != nil {
-		Error("获取请求失败: %s", err.Error())
-		return
+		if err != io.EOF {
+			Error("获取请求失败: %s", err.Error())
+		}
+		return err
 	}
 	service, ok := server.serviceMap[req.ServiceName]
 	if !ok {
 		Error("服务不存在: %s", req.ServiceName)
-		return
+		return err
 	}
 	method, ok := service.methodMap[req.MethodName]
 	if !ok {
 		Error("方法不存在: %s", req.MethodName)
-		return
+		return err
 	}
 
 	params := make([]reflect.Value, len(req.Params))
 	for i, p := range req.Params {
 		if !ok {
 			Error("参数类型不存在: %s", p.Type)
-			return
+			return err
 		}
 		params[i] = reflect.ValueOf(convert(p))
 	}
 	resps := method.rvalue.Call(params)
 	resp := resps[0].Interface().(Response)
+	resp.Seq = req.Seq
 	server.options.Protocol.Codec.sendResponse(conn, resp)
 	Info("%v", resp)
-}
-
-func (server *Server) execute(req Request) {
-
+	return nil
 }
