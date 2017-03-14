@@ -10,34 +10,60 @@ import (
 )
 
 // ParamTypes 参数类型映射
-var ParamTypes = make(map[string]reflect.Type)
+var ParamTypes = make(map[string]string)
 
 func init() {
-	ParamTypes["int"] = reflect.TypeOf(reflect.Int32)
-	ParamTypes["long"] = reflect.TypeOf(reflect.Int64)
-	ParamTypes["float"] = reflect.TypeOf(reflect.Float32)
-	ParamTypes["double"] = reflect.TypeOf(reflect.Float64)
-	ParamTypes["string"] = reflect.TypeOf(reflect.String)
+	ParamTypes[reflect.Int.String()] = "int"
+	ParamTypes[reflect.Int32.String()] = "int"
+	ParamTypes[reflect.Int64.String()] = "long"
+	ParamTypes[reflect.Float32.String()] = "float"
+	ParamTypes[reflect.Float64.String()] = "double"
+	ParamTypes[reflect.String.String()] = "string"
+}
+
+// GetValue 获取参数值
+func (param RequestParam) GetValue() (value interface{}) {
+	switch param.Type {
+	case "int":
+		value, _ = strconv.ParseInt(param.Value, 10, 32)
+	case "float":
+		value, _ = strconv.ParseFloat(param.Value, 32)
+	case "long":
+		value, _ = strconv.ParseInt(param.Value, 10, 64)
+	case "double":
+		value, _ = strconv.ParseFloat(param.Value, 64)
+	case "string":
+		value = param.Value
+	default:
+		value = nil
+	}
+	return
+}
+
+// GetRequestParam 参数转换成RequestParam
+func GetRequestParam(value interface{}) (RequestParam, error) {
+	rp := new(RequestParam)
+	t, ok := ParamTypes[reflect.TypeOf(value).String()]
+	if ok {
+		tt := reflect.TypeOf("")
+		rp.Value = reflect.ValueOf(value).Convert(tt).String()
+		rp.Type = t
+	} else {
+		return RequestParam{}, errors.New("参数转换RequestParam失败")
+	}
+	return *rp, nil
+}
+
+func _checkIn() {
+
 }
 
 func checkIn(intype reflect.Type) bool {
-	switch intype {
-	case reflect.TypeOf(reflect.Int32):
-		return true
-	case reflect.TypeOf(reflect.Int64):
-		return true
-	case reflect.TypeOf(reflect.Float32):
-		return true
-	case reflect.TypeOf(reflect.Float64):
-		return true
-	case reflect.TypeOf(reflect.String):
-		return true
-
-	}
-	return true
+	_, ok := ParamTypes[intype.String()]
+	return ok
 }
 
-func convert(param RequestParam) (value interface{}) {
+func convert(param *RequestParam) (value interface{}) {
 	switch param.Type {
 	case "int":
 		value, _ = strconv.ParseInt(param.Value, 10, 32)
@@ -55,10 +81,15 @@ func convert(param RequestParam) (value interface{}) {
 
 // Protocol 协议
 type Protocol struct {
+	//版本号
+	Version string
+	//协议名称
+	Name string
+	//编码器，用于实现数据收发的过程
 	Codec Codec
 }
 
-// Codec 编码器
+// Codec 编码器接口
 type Codec interface {
 	getRequest(r net.Conn) (req Request, err error)
 	getResponse(r net.Conn) (resp Response, err error)
@@ -68,18 +99,26 @@ type Codec interface {
 
 // Request 请求
 type Request struct {
-	Seq         uint64
-	ServiceName string         `json:"ServiceName"`
-	MethodName  string         `json:"MethodName"`
-	Params      []RequestParam `json:"Params"`
+	// 请求序列，唯一
+	Seq uint64
+	// 服务名称
+	ServiceName string `json:"ServiceName"`
+	// 方法名称
+	MethodName string `json:"MethodName"`
+	// 请求参数
+	Params []RequestParam `json:"Params"`
 }
 
-// Response 请求
+// Response 响应，注册的方法返回值必须是Response类型
 type Response struct {
-	Code    int
+	// 响应码
+	Code int
+	// 响应消息
 	Message string
-	Data    interface{}
-	Seq     uint64
+	// 结果数据
+	Data interface{}
+	// 客户端过来的请求序列，原样返回
+	Seq uint64
 }
 
 // RequestParam 方法参数
@@ -88,7 +127,7 @@ type RequestParam struct {
 	Value string
 }
 
-//=============实现一个JSON的编码器=================
+//=============实现一个简单的JSON编码器=================
 
 // JSONCodec JSON
 type JSONCodec struct {

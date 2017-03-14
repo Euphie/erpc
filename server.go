@@ -1,17 +1,16 @@
 package erpc
 
 import (
+	"fmt"
 	"io"
 	"net"
 	"reflect"
-	"strconv"
 	"sync"
 )
 
 // Options PRC服务器选项
 type Options struct {
 	Address  string
-	Port     int
 	Protocol *Protocol
 }
 
@@ -46,10 +45,7 @@ func GetDefaultServer() (server *Server) {
 func NewServer(options Options) (server *Server) {
 	// 默认选项
 	if options.Address == "" {
-		options.Address = "0.0.0.0"
-	}
-	if options.Port == 0 {
-		options.Port = 9999
+		options.Address = "0.0.0.0:9999"
 	}
 	if options.Protocol == nil {
 		options.Protocol = &Protocol{Codec: &JSONCodec{}}
@@ -96,11 +92,11 @@ func (server *Server) Register(service interface{}, alias string) {
 		value := _service.rvalue.Method(i)
 		method := _service.rtype.Method(i)
 		incheck := true
-		for j := 0; j < method.Type.NumIn(); j++ {
+		for j := 1; j < method.Type.NumIn(); j++ {
 			intype := method.Type.In(j)
 			if !checkIn(intype) {
 				incheck = false
-				break
+				continue
 			}
 		}
 		if !incheck {
@@ -123,12 +119,11 @@ func (server *Server) Register(service interface{}, alias string) {
 
 // Start 启动RPC服务器
 func (server *Server) Start() {
-	address := server.options.Address + ":" + strconv.Itoa(server.options.Port)
-	listener, err := net.Listen("tcp", address)
+	listener, err := net.Listen("tcp", server.options.Address)
 	if err != nil {
 		Error("监听失败: %s", err.Error())
 	} else {
-		Info("监听地址: %s", address)
+		Info("监听地址: %s", server.options.Address)
 	}
 
 	server.listener = &listener
@@ -165,6 +160,7 @@ func (server *Server) execute(conn net.Conn) error {
 		return err
 	}
 	method, ok := service.methodMap[req.MethodName]
+	fmt.Printf("%v", service.methodMap)
 	if !ok {
 		Error("方法不存在: %s", req.MethodName)
 		return err
@@ -176,7 +172,7 @@ func (server *Server) execute(conn net.Conn) error {
 			Error("参数类型不存在: %s", p.Type)
 			return err
 		}
-		params[i] = reflect.ValueOf(convert(p))
+		params[i] = reflect.ValueOf(p.GetValue())
 	}
 	resps := method.rvalue.Call(params)
 	resp := resps[0].Interface().(Response)

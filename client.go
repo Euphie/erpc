@@ -1,22 +1,18 @@
 package erpc
 
 import (
-	"fmt"
 	"net"
-	"strconv"
 	"sync"
 	"time"
 )
 
-// ClientOptions 客户端选项
+// ClientOptions RPC客户端选项
 type ClientOptions struct {
-	Retries      int
-	Timeout      time.Duration
-	ReadTimeout  time.Duration
-	WriteTimeout time.Duration
-	Address      string
-	Port         int
-	Protocol     *Protocol
+	Retries  int
+	Timeout  time.Duration
+	Address  string
+	Port     int
+	Protocol *Protocol
 }
 
 // Client RPC客户端
@@ -40,7 +36,7 @@ func (c *Client) dispatch() {
 	for {
 		resp, err := c.options.Protocol.Codec.getResponse(c.conn)
 		if err != nil {
-			fmt.Println(err)
+			Error("获取响应失败: %s", err.Error())
 			continue
 		}
 		call, ok := c.pool[resp.Seq]
@@ -77,16 +73,14 @@ func (c *Client) request(req *Request) *Call {
 	return call
 }
 
-// Call 调用RPC方法
-func (c *Client) Call(req *Request) (resp Response, err error) {
+func (c *Client) call(req *Request) (resp Response, err error) {
 	call := new(Call)
-
 	done := false
 	for done == false {
 		select {
 		case call = <-c.request(req).Done:
 			done = true
-		case <-time.After(time.Second * c.options.ReadTimeout):
+		case <-time.After(time.Second * c.options.Timeout):
 			done = true
 		}
 	}
@@ -94,17 +88,32 @@ func (c *Client) Call(req *Request) (resp Response, err error) {
 	return *call.Resp, call.Error
 }
 
+// Call 调用RPC方法
+func (c *Client) Call(serviceName string, methodName string, params ...interface{}) (resp Response, err error) {
+	req := new(Request)
+	req.ServiceName = serviceName
+	req.MethodName = methodName
+	req.Params = make([]RequestParam, len(params))
+	for i, p := range params {
+		rp, err := GetRequestParam(p)
+		if err == nil {
+			req.Params[i] = rp
+		} else {
+			return resp, err
+		}
+	}
+	return c.call(req)
+}
+
 // NewClient 实例化一个RPC客户端
 func NewClient(options *ClientOptions) (c *Client, err error) {
 	c = new(Client)
-	options.Address = "127.0.0.1"
-	options.Port = 9999
-	options.ReadTimeout = 2
+	options.Address = "127.0.0.1:9999"
+	options.Timeout = 2
 	options.Protocol = &Protocol{Codec: &JSONCodec{}}
 	c.options = options
 	c.pool = make(map[uint64]*Call)
-	address := options.Address + ":" + strconv.Itoa(options.Port)
-	c.conn, err = net.Dial("tcp", address)
+	c.conn, err = net.Dial("tcp", options.Address)
 	if err != nil {
 		return nil, err
 	}
