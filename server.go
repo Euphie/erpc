@@ -141,43 +141,55 @@ func (server *Server) handleConn(conn net.Conn) {
 	for {
 		err := server.execute(conn)
 		if err != nil {
-			break
+			Error(err.Error())
+			continue
 		}
 	}
 }
 
-func (server *Server) execute(conn net.Conn) error {
+func (server *Server) execute(conn net.Conn) (err error) {
 	req, err := server.options.Protocol.Codec.getRequest(conn)
 	if err != nil {
 		if err != io.EOF {
-			Error("获取请求失败: %s", err.Error())
+			err = fmt.Errorf("获取请求失败: %s", err.Error())
 		}
-		return err
+		return
 	}
+	defer func() {
+		if p := recover(); p != nil {
+			err = fmt.Errorf("方法调用失败: %v", p)
+			resp := new(Response)
+			resp.Code = -10000
+			resp.Message = err.Error()
+			resp.Seq = req.Seq
+			server.response(conn, resp)
+		}
+	}()
 	service, ok := server.serviceMap[req.ServiceName]
 	if !ok {
-		Error("服务不存在: %s", req.ServiceName)
-		return err
+		err = fmt.Errorf("服务不存在: %s", req.ServiceName)
 	}
 	method, ok := service.methodMap[req.MethodName]
 	fmt.Printf("%v", service.methodMap)
 	if !ok {
-		Error("方法不存在: %s", req.MethodName)
-		return err
+		err = fmt.Errorf("方法不存在: %s", req.MethodName)
 	}
 
 	params := make([]reflect.Value, len(req.Params))
 	for i, p := range req.Params {
 		if !ok {
-			Error("参数类型不存在: %s", p.Type)
-			return err
+			err = fmt.Errorf("参数类型不存在: %s", p.Type)
 		}
 		params[i] = reflect.ValueOf(p.GetValue())
 	}
 	resps := method.rvalue.Call(params)
 	resp := resps[0].Interface().(Response)
 	resp.Seq = req.Seq
-	server.options.Protocol.Codec.sendResponse(conn, resp)
-	Info("%v", resp)
-	return nil
+	return server.response(conn, &resp)
+}
+
+func (server *Server) response(conn net.Conn, resp *Response) (err error) {
+	err = server.options.Protocol.Codec.sendResponse(conn, *resp)
+	Info("%v", *resp)
+	return
 }

@@ -32,18 +32,19 @@ type Call struct {
 	Error error
 }
 
-func (c *Client) dispatch() {
+func (client *Client) dispatch() {
 	for {
-		resp, err := c.options.Protocol.Codec.getResponse(c.conn)
+		resp, err := client.options.Protocol.Codec.getResponse(client.conn)
 		if err != nil {
 			Error("获取响应失败: %s", err.Error())
 			continue
 		}
-		call, ok := c.pool[resp.Seq]
-		call.Resp = &resp
+		call, ok := client.pool[resp.Seq]
 		if !ok {
 			//可能发送就失败了，或者服务端错误，先忽略
 			continue
+		} else {
+			call.Resp = &resp
 		}
 		call.done()
 	}
@@ -55,16 +56,16 @@ func (c *Call) done() {
 	}
 }
 
-func (c *Client) request(req *Request) *Call {
+func (client *Client) request(req *Request) *Call {
 	call := new(Call)
-	c.mutex.Lock()
-	c.seq++
-	c.pool[c.seq] = call
-	c.mutex.Unlock()
-	req.Seq = c.seq
+	client.mutex.Lock()
+	client.seq++
+	client.pool[client.seq] = call
+	client.mutex.Unlock()
+	req.Seq = client.seq
 	call.Req = req
 	call.Done = make(chan *Call)
-	err := c.options.Protocol.Codec.sendRequest(c.conn, *req)
+	err := client.options.Protocol.Codec.sendRequest(client.conn, *req)
 	if err != nil {
 		call.Error = err
 		call.done()
@@ -73,14 +74,14 @@ func (c *Client) request(req *Request) *Call {
 	return call
 }
 
-func (c *Client) call(req *Request) (resp Response, err error) {
+func (client *Client) call(req *Request) (resp Response, err error) {
 	call := new(Call)
 	done := false
 	for done == false {
 		select {
-		case call = <-c.request(req).Done:
+		case call = <-client.request(req).Done:
 			done = true
-		case <-time.After(time.Second * c.options.Timeout):
+		case <-time.After(time.Second * client.options.Timeout):
 			done = true
 		}
 	}
@@ -89,7 +90,7 @@ func (c *Client) call(req *Request) (resp Response, err error) {
 }
 
 // Call 调用RPC方法
-func (c *Client) Call(serviceName string, methodName string, params ...interface{}) (resp Response, err error) {
+func (client *Client) Call(serviceName string, methodName string, params ...interface{}) (resp Response, err error) {
 	req := new(Request)
 	req.ServiceName = serviceName
 	req.MethodName = methodName
@@ -102,14 +103,14 @@ func (c *Client) Call(serviceName string, methodName string, params ...interface
 			return resp, err
 		}
 	}
-	return c.call(req)
+	return client.call(req)
 }
 
 // NewClient 实例化一个RPC客户端
 func NewClient(options *ClientOptions) (c *Client, err error) {
 	c = new(Client)
 	options.Address = "127.0.0.1:9999"
-	options.Timeout = 2
+	options.Timeout = 300
 	options.Protocol = &Protocol{Codec: &JSONCodec{}}
 	c.options = options
 	c.pool = make(map[uint64]*Call)

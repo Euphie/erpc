@@ -3,6 +3,7 @@ package erpc
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"reflect"
@@ -14,26 +15,34 @@ var ParamTypes = make(map[string]string)
 
 func init() {
 	ParamTypes[reflect.Int.String()] = "int"
-	ParamTypes[reflect.Int32.String()] = "int"
-	ParamTypes[reflect.Int64.String()] = "long"
-	ParamTypes[reflect.Float32.String()] = "float"
-	ParamTypes[reflect.Float64.String()] = "double"
+	ParamTypes[reflect.Int32.String()] = "int32"
+	ParamTypes[reflect.Int64.String()] = "int64"
+	ParamTypes[reflect.Float32.String()] = "float32"
+	ParamTypes[reflect.Float64.String()] = "float64"
 	ParamTypes[reflect.String.String()] = "string"
+	ParamTypes[reflect.Bool.String()] = "bool"
 }
 
 // GetValue 获取参数值
 func (param RequestParam) GetValue() (value interface{}) {
 	switch param.Type {
 	case "int":
-		value, _ = strconv.ParseInt(param.Value, 10, 32)
-	case "float":
-		value, _ = strconv.ParseFloat(param.Value, 32)
-	case "long":
-		value, _ = strconv.ParseInt(param.Value, 10, 64)
-	case "double":
+		value, _ = strconv.Atoi(param.Value)
+	case "int32":
+		temp, _ := strconv.ParseInt(param.Value, 10, 32)
+		value = int32(temp)
+	case "int64":
+		temp, _ := strconv.ParseInt(param.Value, 10, 32)
+		value = int64(temp)
+	case "float32":
+		temp, _ := strconv.ParseFloat(param.Value, 32)
+		value = float32(temp)
+	case "float64":
 		value, _ = strconv.ParseFloat(param.Value, 64)
 	case "string":
 		value = param.Value
+	case "bool":
+		value, _ = strconv.ParseBool(param.Value)
 	default:
 		value = nil
 	}
@@ -43,19 +52,32 @@ func (param RequestParam) GetValue() (value interface{}) {
 // GetRequestParam 参数转换成RequestParam
 func GetRequestParam(value interface{}) (RequestParam, error) {
 	rp := new(RequestParam)
-	t, ok := ParamTypes[reflect.TypeOf(value).String()]
-	if ok {
-		tt := reflect.TypeOf("")
-		rp.Value = reflect.ValueOf(value).Convert(tt).String()
-		rp.Type = t
-	} else {
-		return RequestParam{}, errors.New("参数转换RequestParam失败")
+	switch value.(type) {
+	case int:
+		rp.Type = "int"
+		rp.Value = fmt.Sprint(value.(int))
+	case int32:
+		rp.Type = "int32"
+		rp.Value = fmt.Sprint(value.(int32))
+	case int64:
+		rp.Type = "int64"
+		rp.Value = fmt.Sprint(value.(int64))
+	case float32:
+		rp.Type = "float32"
+		rp.Value = strconv.FormatFloat(float64(value.(float32)), 'f', -1, 32)
+	case float64:
+		rp.Type = "float64"
+		rp.Value = strconv.FormatFloat(value.(float64), 'f', -1, 64)
+	case string:
+		rp.Type = "string"
+		rp.Value = value.(string)
+	case bool:
+		rp.Type = "bool"
+		rp.Value = fmt.Sprint(value.(bool))
+	default:
+		return *rp, errors.New("不支持的参数类型")
 	}
 	return *rp, nil
-}
-
-func _checkIn() {
-
 }
 
 func checkIn(intype reflect.Type) bool {
@@ -230,54 +252,8 @@ func (jc *JSONCodec) sendResponse(r net.Conn, resp Response) (err error) {
 		buf = append(buf, v)
 	}
 	n, err := r.Write(buf)
-	if n == 0 || n != ilen {
-		return errors.New("数据报文失败")
-	}
-	return err
-}
-
-//=============实现一个测试的JSON的编码器=================
-
-// TestJSONCodec JSON
-type TestJSONCodec struct {
-}
-
-func (jc *TestJSONCodec) getRequest(r net.Conn) (req Request, err error) {
-	str := "{\"ServiceName\":\"AAA\",\"MethodName\":\"M1\",\"Params\":[{\"Value\":\"111\",\"Type\":\"int\"},{\"Value\":\"ssbb\",\"Type\":\"string\"}]}"
-	req = Request{}
-	json.Unmarshal([]byte(str), &req)
-	return req, nil
-}
-
-func (jc *TestJSONCodec) getResponse(r net.Conn) (resp Response, err error) {
-	return Response{}, nil
-}
-func (jc *TestJSONCodec) sendRequest(r net.Conn, req Request) (err error) {
-	return nil
-}
-func (jc *TestJSONCodec) sendResponse(r net.Conn, resp Response) (err error) {
-	bytes, err := json.Marshal(resp)
-	if err != nil {
-		return err
-	}
-	ilen := len(bytes)
-	slen := strconv.Itoa(ilen)
-	bit := len(slen)
-	if bit > 8 {
-		return errors.New("写入报文太大")
-	}
-	if bit < 8 {
-		for i := 0; i < 8-bit; i++ {
-			slen = "0" + slen
-		}
-	}
-	buf := []byte(slen)
-	for _, v := range bytes {
-		buf = append(buf, v)
-	}
-	n, err := r.Write(buf)
-	if n == 0 || n != ilen {
-		return errors.New("数据报文失败")
+	if n == 0 || n != ilen+8 {
+		return errors.New("数据报文写入失败")
 	}
 	return err
 }
