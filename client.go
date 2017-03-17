@@ -32,7 +32,7 @@ type Call struct {
 
 func (client *Client) dispatch() {
 	for {
-		resp, err := client.options.Protocol.Codec.getResponse(client.conn)
+		resp, err := client.options.Protocol.Codec.GetResponse(client.conn)
 		if err != nil {
 			Error("获取响应失败: %s", err.Error())
 			continue
@@ -63,7 +63,7 @@ func (client *Client) request(req *Request) *Call {
 	req.Seq = client.seq
 	call.Req = req
 	call.Done = make(chan *Call)
-	err := client.options.Protocol.Codec.sendRequest(client.conn, *req)
+	err := client.options.Protocol.Codec.SendRequest(client.conn, *req)
 	if err != nil {
 		call.Error = err
 		call.done()

@@ -1,7 +1,11 @@
 package config
 
-import "time"
-import "github.com/euphie/erpc"
+import (
+	"time"
+
+	"github.com/euphie/erpc"
+	"github.com/euphie/erpc/protocol"
+)
 
 // ServerConfig ServerConfig
 type ServerConfig struct {
@@ -33,7 +37,7 @@ func GetServerOptions(file string) (so *erpc.ServerOptions) {
 	switch sc.Protocol {
 	default:
 		so.Protocol = new(erpc.Protocol)
-		so.Protocol.Codec = new(erpc.JSONCodec)
+		so.Protocol.Codec = new(protocol.JSONCodec)
 		so.Protocol.Name = "json"
 		so.Protocol.Version = "1"
 	}
@@ -58,7 +62,7 @@ func GetClientOptions(file string) (co *erpc.ClientOptions) {
 	switch cc.Protocol {
 	default:
 		co.Protocol = new(erpc.Protocol)
-		co.Protocol.Codec = new(erpc.JSONCodec)
+		co.Protocol.Codec = new(protocol.JSONCodec)
 		co.Protocol.Name = "json"
 		co.Protocol.Version = "1"
 	}

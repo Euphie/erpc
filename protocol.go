@@ -111,10 +111,10 @@ type Protocol struct {
 
 // Codec 编码器接口
 type Codec interface {
-	getRequest(conn net.Conn) (req Request, err error)
-	getResponse(conn net.Conn) (resp Response, err error)
-	sendRequest(conn net.Conn, req Request) (err error)
-	sendResponse(conn net.Conn, resp Response) (err error)
+	GetRequest(conn net.Conn) (req Request, err error)
+	GetResponse(conn net.Conn) (resp Response, err error)
+	SendRequest(conn net.Conn, req Request) (err error)
+	SendResponse(conn net.Conn, resp Response) (err error)
 }
 
 // Request 请求

@@ -133,7 +133,7 @@ func (server *Server) handleConn(conn net.Conn) {
 }
 
 func (server *Server) execute(conn net.Conn) (err error) {
-	req, err := server.options.Protocol.Codec.getRequest(conn)
+	req, err := server.options.Protocol.Codec.GetRequest(conn)
 	if err != nil {
 		if err != io.EOF {
 			err = fmt.Errorf("获取请求失败: %s", err.Error())
@@ -174,7 +174,7 @@ func (server *Server) execute(conn net.Conn) (err error) {
 }
 
 func (server *Server) response(conn net.Conn, resp *Response) (err error) {
-	err = server.options.Protocol.Codec.sendResponse(conn, *resp)
+	err = server.options.Protocol.Codec.SendResponse(conn, *resp)
 	Info("%v", *resp)
 	return
 }

@@ -1,4 +1,4 @@
-package erpc
+package protocol
 
 import (
 	"encoding/json"
@@ -6,6 +6,8 @@ import (
 	"io"
 	"net"
 	"strconv"
+
+	"github.com/euphie/erpc"
 )
 
 //=============实现一个简单的JSON编码器=================
@@ -14,11 +16,12 @@ import (
 type JSONCodec struct {
 }
 
-func (jc *JSONCodec) getRequest(conn net.Conn) (req Request, err error) {
+// GetRequest GetRequest
+func (jc *JSONCodec) GetRequest(conn net.Conn) (req erpc.Request, err error) {
 	// 方便telnet测试，取前8个字节的字符，转成int
 	buf := make([]byte, 8)
 	n, _ := io.ReadFull(conn, buf)
-	req = Request{}
+	req = erpc.Request{}
 	if err == io.EOF || n == 0 {
 		err = io.EOF
 		return
@@ -42,7 +45,8 @@ func (jc *JSONCodec) getRequest(conn net.Conn) (req Request, err error) {
 	return
 }
 
-func (jc *JSONCodec) getResponse(conn net.Conn) (resp Response, err error) {
+// GetResponse GetResponse
+func (jc *JSONCodec) GetResponse(conn net.Conn) (resp erpc.Response, err error) {
 	// 方便telnet测试，取前8个字节的字符，转成int
 	buf := make([]byte, 8)
 	n, err := io.ReadFull(conn, buf)
@@ -50,7 +54,7 @@ func (jc *JSONCodec) getResponse(conn net.Conn) (resp Response, err error) {
 		err = errors.New("请求结束")
 		return
 	}
-	resp = Response{}
+	resp = erpc.Response{}
 	if n < 8 {
 		err = errors.New("读取报文长度错误")
 		return
@@ -69,7 +73,9 @@ func (jc *JSONCodec) getResponse(conn net.Conn) (resp Response, err error) {
 	}
 	return
 }
-func (jc *JSONCodec) sendRequest(conn net.Conn, req Request) (err error) {
+
+// SendRequest SendRequest
+func (jc *JSONCodec) SendRequest(conn net.Conn, req erpc.Request) (err error) {
 	buff, err := json.Marshal(req)
 	if err != nil {
 		err = errors.New("报文生成错误")
@@ -90,7 +96,9 @@ func (jc *JSONCodec) sendRequest(conn net.Conn, req Request) (err error) {
 
 	return nil
 }
-func (jc *JSONCodec) sendResponse(conn net.Conn, resp Response) (err error) {
+
+// SendResponse SendResponse
+func (jc *JSONCodec) SendResponse(conn net.Conn, resp erpc.Response) (err error) {
 	bytes, err := json.Marshal(resp)
 	if err != nil {
 		return err
