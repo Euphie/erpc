@@ -8,11 +8,9 @@ import (
 
 // ClientOptions RPC客户端选项
 type ClientOptions struct {
-	Retries  int
-	Timeout  time.Duration
 	Address  string
-	Port     int
 	Protocol *Protocol
+	Timeout  time.Duration
 }
 
 // Client RPC客户端
@@ -107,17 +105,14 @@ func (client *Client) Call(serviceName string, methodName string, params ...inte
 }
 
 // NewClient 实例化一个RPC客户端
-func NewClient(options *ClientOptions) (c *Client, err error) {
-	c = new(Client)
-	options.Address = "127.0.0.1:9999"
-	options.Timeout = 300
-	options.Protocol = &Protocol{Codec: &JSONCodec{}}
-	c.options = options
-	c.pool = make(map[uint64]*Call)
-	c.conn, err = net.Dial("tcp", options.Address)
+func NewClient(options *ClientOptions) (client *Client, err error) {
+	client = new(Client)
+	client.options = options
+	client.pool = make(map[uint64]*Call)
+	client.conn, err = net.Dial("tcp", options.Address)
 	if err != nil {
 		return nil, err
 	}
-	go c.dispatch()
+	go client.dispatch()
 	return
 }

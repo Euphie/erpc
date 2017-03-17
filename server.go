@@ -8,8 +8,8 @@ import (
 	"sync"
 )
 
-// Options PRC服务器选项
-type Options struct {
+// ServerOptions PRC服务器选项
+type ServerOptions struct {
 	Address  string
 	Protocol *Protocol
 }
@@ -31,30 +31,16 @@ type SerivceMethod struct {
 // Server PRC服务器
 type Server struct {
 	mutex      sync.RWMutex
-	options    *Options
+	options    *ServerOptions
 	listener   *net.Listener
 	serviceMap map[string]*Service
 }
 
-// GetDefaultServer 创建一个默认的RPC服务器
-func GetDefaultServer() (server *Server) {
-	return NewServer(Options{})
-}
-
 // NewServer 新建一个RPC服务器
-func NewServer(options Options) (server *Server) {
-	// 默认选项
-	if options.Address == "" {
-		options.Address = "0.0.0.0:9999"
-	}
-	if options.Protocol == nil {
-		options.Protocol = &Protocol{Codec: &JSONCodec{}}
-	}
-	server = &Server{
-		options:    &options,
-		serviceMap: make(map[string]*Service),
-	}
-
+func NewServer(options *ServerOptions) (server *Server) {
+	server = new(Server)
+	server.options = options
+	server.serviceMap = make(map[string]*Service)
 	return
 }
 
@@ -129,7 +115,6 @@ func (server *Server) Start() {
 	server.listener = &listener
 	for {
 		conn, err := listener.Accept()
-		// conn.SetReadDeadline(time.Now().Add(time.Duration(60 * time.Second)))
 		if err != nil {
 			Error("连接失败: %s", err.Error())
 		}
