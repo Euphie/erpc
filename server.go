@@ -126,8 +126,11 @@ func (server *Server) handleConn(conn net.Conn) {
 	for {
 		err := server.execute(conn)
 		if err != nil {
-			Error(err.Error())
-			continue
+			if err != io.EOF {
+				Error(err.Error())
+			}
+			conn.Close()
+			break
 		}
 	}
 }
@@ -142,10 +145,9 @@ func (server *Server) execute(conn net.Conn) (err error) {
 	}
 	defer func() {
 		if p := recover(); p != nil {
-			err = fmt.Errorf("方法调用失败: %v", p)
 			resp := new(Response)
 			resp.Code = -10000
-			resp.Message = err.Error()
+			resp.Message = fmt.Sprintf("方法调用失败: %v", p)
 			resp.Seq = req.Seq
 			server.response(conn, resp)
 		}
