@@ -57,9 +57,9 @@ func (c *Call) done() {
 func (client *Client) request(req *Request) *Call {
 	call := new(Call)
 	client.mutex.Lock()
+	defer client.mutex.Unlock()
 	client.seq++
 	client.pool[client.seq] = call
-	client.mutex.Unlock()
 	req.Seq = client.seq
 	call.Req = req
 	call.Done = make(chan *Call)
@@ -88,7 +88,7 @@ func (client *Client) call(req *Request) (resp Response, err error) {
 }
 
 // Call 调用RPC方法
-func (client *Client) Call(serviceName string, methodName string, params ...interface{}) (resp Response, err error) {
+func (client *Client) Call(serviceName string, methodName string, params []interface{}) (resp Response, err error) {
 	req := new(Request)
 	req.ServiceName = serviceName
 	req.MethodName = methodName

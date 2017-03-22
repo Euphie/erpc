@@ -8,10 +8,14 @@ import (
 	"sync"
 )
 
+// ServiceRegisterFunc 服务注册后候执行的方法
+type ServiceRegisterFunc func(serviceName string) error
+
 // ServerOptions PRC服务器选项
 type ServerOptions struct {
 	Address  string
 	Protocol *Protocol
+	SRF      *ServiceRegisterFunc
 }
 
 // Service 服务
@@ -100,7 +104,12 @@ func (server *Server) Register(service interface{}, alias string) {
 			method: method,
 		}
 	}
+	if err := (*server.options.SRF)(name); err != nil {
+		Error("服务注册失败: %s", err.Error())
+		return
+	}
 	server.serviceMap[name] = _service
+	Info("服务 %s 注册成功", name)
 }
 
 // Start 启动RPC服务器
