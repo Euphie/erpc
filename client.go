@@ -1,6 +1,7 @@
 package erpc
 
 import (
+	"errors"
 	"net"
 	"sync"
 	"time"
@@ -74,14 +75,10 @@ func (client *Client) request(req *Request) *Call {
 
 func (client *Client) call(req *Request) (resp Response, err error) {
 	call := new(Call)
-	done := false
-	for done == false {
-		select {
-		case call = <-client.request(req).Done:
-			done = true
-		case <-time.After(time.Second * client.options.Timeout):
-			done = true
-		}
+	select {
+	case call = <-client.request(req).Done:
+	case <-time.After(time.Second * client.options.Timeout):
+		call.Error = errors.New("请求超时")
 	}
 
 	return *call.Resp, call.Error

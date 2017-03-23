@@ -13,9 +13,9 @@ type ServiceRegisterFunc func(serviceName string) error
 
 // ServerOptions PRC服务器选项
 type ServerOptions struct {
-	Address  string
-	Protocol *Protocol
-	SRF      *ServiceRegisterFunc
+	Address             string
+	Protocol            *Protocol
+	ServiceRegisterFunc ServiceRegisterFunc
 }
 
 // Service 服务
@@ -104,7 +104,7 @@ func (server *Server) Register(service interface{}, alias string) {
 			method: method,
 		}
 	}
-	if err := (*server.options.SRF)(name); err != nil {
+	if err := server.options.ServiceRegisterFunc(name); err != nil {
 		Error("服务注册失败: %s", err.Error())
 		return
 	}
