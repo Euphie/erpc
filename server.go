@@ -86,7 +86,7 @@ func (server *Server) Register(service interface{}, alias string) {
 			intype := method.Type.In(j)
 			if !checkIn(intype) {
 				incheck = false
-				continue
+				break
 			}
 		}
 		if !incheck {
@@ -164,18 +164,17 @@ func (server *Server) execute(conn net.Conn) (err error) {
 	service, ok := server.serviceMap[req.ServiceName]
 	if !ok {
 		err = fmt.Errorf("服务不存在: %s", req.ServiceName)
+		return
 	}
 	method, ok := service.methodMap[req.MethodName]
 	fmt.Printf("%v", service.methodMap)
 	if !ok {
 		err = fmt.Errorf("方法不存在: %s", req.MethodName)
+		return
 	}
 
 	params := make([]reflect.Value, len(req.Params))
 	for i, p := range req.Params {
-		if !ok {
-			err = fmt.Errorf("参数类型不存在: %s", p.Type)
-		}
 		params[i] = reflect.ValueOf(p.GetValue())
 	}
 	resps := method.rvalue.Call(params)
